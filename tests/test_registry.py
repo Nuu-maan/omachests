@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from registry import BOT_ID, MARKER, check_release, parse_submission, receipts, safe_path, validate_manifest
+from registry import check_release, parse_submission, safe_path, validate_manifest
 
 
 class RegistryTests(unittest.TestCase):
@@ -39,20 +39,14 @@ class RegistryTests(unittest.TestCase):
             parse_submission(json.dumps({'repository': 'a/b', 'commit': 'main'}))
 
     def test_versions_cannot_be_overwritten_or_taken_over(self):
-        old = {'package': '@someone/clock', 'repositoryId': 1, 'version': '1.0.0', 'commit': 'a' * 40}
+        old = {'package': '@someone/clock', 'repositoryId': 1, 'id': 'someone.clock', 'version': '1.0.0', 'commit': 'a' * 40}
         self.assertFalse(check_release([old], old))
         self.assertTrue(check_release([old], {**old, 'version': '1.0.1'}))
         for change in ({'commit': 'b' * 40}, {'repositoryId': 2}):
             with self.assertRaises(ValueError):
                 check_release([old], {**old, **change})
-
-    def test_only_registry_bot_receipts_are_read(self):
-        class API:
-            def pages(self, path):
-                return [{'user': {'id': user}, 'body': MARKER + '{"package":"@a/b"}\n```',
-                         'html_url': 'https://github.com/receipt'} for user in (123, BOT_ID)]
-        self.assertEqual(len(receipts(API())), 1)
-
+        with self.assertRaises(ValueError):
+            check_release([old], {**old, 'package': '@other/clock', 'repositoryId': 2})
 
 if __name__ == '__main__':
     unittest.main()

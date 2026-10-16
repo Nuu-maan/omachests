@@ -13,7 +13,7 @@ class IntakeTests(unittest.TestCase):
         class API:
             def pages(self, path):
                 return [issue]
-        record = {'package': '@owner/plugin', 'commit': 'a' * 40}
+        record = {'package': '@owner/plugin', 'repositoryId': 1, 'id': 'owner.plugin', 'commit': 'a' * 40}
         with patch('intake.resolve', return_value={}), patch('intake.verify', return_value=record), patch('intake.scan_repository', return_value=record):
             proposal = prepare(API(), [], [])[0]
         self.assertEqual(proposal['event']['type'], 'submission')
@@ -26,8 +26,23 @@ class IntakeTests(unittest.TestCase):
         class API:
             def pages(self, path):
                 return [issue]
-        published = {'package': '@owner/plugin', 'commit': 'a' * 40, 'version': '1.0.0', 'repositoryId': 1}
+        published = {'package': '@owner/plugin', 'commit': 'a' * 40, 'version': '1.0.0', 'repositoryId': 1, 'id': 'owner.plugin'}
         resubmission = {**published, 'commit': 'b' * 40}
         with patch('intake.resolve', return_value={}), patch('intake.verify', return_value=resubmission), patch('intake.scan_repository', return_value=resubmission):
             proposal = prepare(API(), [published], [])[0]
         self.assertIn('cannot be replaced', proposal['error'])
+
+    def test_report_rescans_the_requested_commit(self):
+        record = {'package': '@owner/plugin', 'commit': 'a' * 40, 'version': '1.0.0'}
+        issue = {'number': 22, 'labels': [{'name': 'report'}], 'body': json.dumps({
+            'package': record['package'], 'commit': record['commit'], 'reason': 'Security issue', 'notes': 'Check this commit',
+        }), 'user': {'id': 2, 'login': 'visitor'}}
+
+        class API:
+            def pages(self, path):
+                return [issue]
+
+        with patch('intake.scan_repository', return_value={**record, 'scan': {'validation': 'passed'}}) as scan:
+            event = prepare(API(), [record], [])[0]['event']
+        self.assertEqual(scan.call_args.args[1]['commit'], record['commit'])
+        self.assertEqual(event['commit'], record['commit'])

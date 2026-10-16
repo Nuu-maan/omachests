@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from registry import BOT_ID, REGISTRY, require
+from registry import require
 
 MARKER = 'Registry event v2\n```json\n'
 CHECKLIST = ['behavior', 'manifest', 'entrypoints', 'malware', 'capabilities', 'ownership',
@@ -21,16 +21,6 @@ def payload(body):
     value = json.loads(blocks[0] if len(blocks) == 1 else body)
     require(isinstance(value, dict), 'Expected a JSON object')
     return value
-
-
-def events(api):
-    result = []
-    for comment in api.pages(f'/repos/{REGISTRY}/issues/comments'):
-        if comment['user']['id'] == BOT_ID and comment.get('body', '').startswith(MARKER):
-            event = json.loads(comment['body'][len(MARKER):].split('\n```', 1)[0])
-            event['receipt'] = comment['html_url']
-            result.append(event)
-    return result
 
 
 def event_id(value):
@@ -64,17 +54,28 @@ def project(records, ledger):
     for original in records:
         record = dict(original)
         related = [e for e in ledger if e.get('package') == record['package']]
+        rescans = [e for e in related if e['type'] == 'report' and e.get('commit') == record['commit'] and e.get('rescan')]
+        if rescans:
+            record['scan'] = rescans[-1]['rescan']
         reviews = [e for e in related if e['type'] == 'review']
         exact = [e for e in reviews if e['commit'] == record['commit']]
         approved_by_commit = {}
         for e in reviews:
             if e['action'] == 'approve':
                 approved_by_commit[e['commit']] = e
-            elif e['action'] == 'revoke':
+            else:
                 approved_by_commit.pop(e['commit'], None)
         approved = list(approved_by_commit.values())
         record['reviews'] = reviews
-        record['reports'] = [e for e in related if e['type'] == 'report' and (not exact or e['timestamp'] > exact[-1]['timestamp'])]
+        reports = [e for e in related if e['type'] == 'report' and (not exact or e['timestamp'] > exact[-1]['timestamp'])]
+        record['reports'] = []
+        for report in reports:
+            public = {key: value for key, value in report.items() if key not in ('rescan', 'rescanError')}
+            if report.get('rescan'):
+                public['rescanStatus'] = 'completed'
+            elif report.get('rescanError'):
+                public['rescanStatus'] = 'failed'
+            record['reports'].append(public)
         record['verification'] = approved[-1] if approved else None
         record['submissionStatus'] = ACTIONS[exact[-1]['action']] if exact else 'PENDING REVIEW'
         record['status'] = 'verified' if record['submissionStatus'] == 'APPROVED' else 'unverified'
