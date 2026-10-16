@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from registry import BOT_ID, REGISTRY, require
+from registry import require
 
 MARKER = 'Registry event v2\n```json\n'
 CHECKLIST = ['behavior', 'manifest', 'entrypoints', 'malware', 'capabilities', 'ownership',
@@ -21,16 +21,6 @@ def payload(body):
     value = json.loads(blocks[0] if len(blocks) == 1 else body)
     require(isinstance(value, dict), 'Expected a JSON object')
     return value
-
-
-def events(api):
-    result = []
-    for comment in api.pages(f'/repos/{REGISTRY}/issues/comments'):
-        if comment['user']['id'] == BOT_ID and comment.get('body', '').startswith(MARKER):
-            event = json.loads(comment['body'][len(MARKER):].split('\n```', 1)[0])
-            event['receipt'] = comment['html_url']
-            result.append(event)
-    return result
 
 
 def event_id(value):

@@ -12,7 +12,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import build
 import publish
-from registry import verify
+from registry import BOT_ID, MARKER as RECEIPT_MARKER, verify
+from trust import MARKER as EVENT_MARKER
 
 
 class API:
@@ -50,6 +51,24 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(result['version'], '1.0.0')
         self.assertEqual(len(result['manifestSha256']), 64)
         self.assertEqual(result['repositoryId'], 1)
+
+    def test_public_ledger_is_loaded_in_one_pass(self):
+        class LedgerAPI:
+            calls = 0
+
+            def pages(self, path):
+                self.calls += 1
+                return [
+                    {'user': {'id': BOT_ID}, 'body': RECEIPT_MARKER + '{"package":"@a/b"}\n```', 'html_url': 'https://github.com/receipt'},
+                    {'user': {'id': BOT_ID}, 'body': EVENT_MARKER + '{"type":"report","package":"@a/b"}\n```', 'html_url': 'https://github.com/event'},
+                    {'user': {'id': 123}, 'body': RECEIPT_MARKER + '{"package":"@evil/repo"}\n```', 'html_url': 'https://github.com/ignored'},
+                ]
+
+        api = LedgerAPI()
+        records, ledger = publish.load(api)
+        self.assertEqual(api.calls, 1)
+        self.assertEqual([record['package'] for record in records], ['@a/b'])
+        self.assertEqual([event['package'] for event in ledger], ['@a/b'])
 
     def test_non_owner_and_organization_need_issue_bound_proof(self):
         for actor in ('intruder', 'owner'):

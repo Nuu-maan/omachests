@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from registry import BOT_ID, MARKER, check_release, parse_submission, receipts, safe_path, validate_manifest
+from registry import check_release, parse_submission, safe_path, validate_manifest
 
 
 class RegistryTests(unittest.TestCase):
@@ -47,14 +47,6 @@ class RegistryTests(unittest.TestCase):
                 check_release([old], {**old, **change})
         with self.assertRaises(ValueError):
             check_release([old], {**old, 'package': '@other/clock', 'repositoryId': 2})
-
-    def test_only_registry_bot_receipts_are_read(self):
-        class API:
-            def pages(self, path):
-                return [{'user': {'id': user}, 'body': MARKER + '{"package":"@a/b"}\n```',
-                         'html_url': 'https://github.com/receipt'} for user in (123, BOT_ID)]
-        self.assertEqual(len(receipts(API())), 1)
-
 
 if __name__ == '__main__':
     unittest.main()

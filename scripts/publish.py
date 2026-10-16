@@ -7,14 +7,27 @@ from urllib.parse import quote
 
 from github import GitHub
 from intake import prepare
-from registry import REGISTRY, check_identity, receipts, verify
+from registry import BOT_ID, MARKER as RECEIPT_MARKER, REGISTRY, check_identity, verify
 from scan import SCANNER_VERSION, scan_repository
-from trust import MARKER, event_id, events, payload, project, review
+from trust import MARKER as EVENT_MARKER, event_id, payload, project, review
 
 
 def load(api):
-    ledger = events(api)
-    records = receipts(api)
+    ledger = []
+    records = []
+    # shortcut: scan at most 10,000 comments; use indexed storage beyond that.
+    for comment in api.pages(f'/repos/{REGISTRY}/issues/comments'):
+        if comment['user']['id'] != BOT_ID:
+            continue
+        body = comment.get('body', '')
+        if body.startswith(EVENT_MARKER):
+            event = json.loads(body[len(EVENT_MARKER):].split('\n```', 1)[0])
+            event['receipt'] = comment['html_url']
+            ledger.append(event)
+        elif body.startswith(RECEIPT_MARKER):
+            record = json.loads(body[len(RECEIPT_MARKER):].split('\n```', 1)[0])
+            record['receipt'] = comment['html_url']
+            records.append(record)
     records.extend({**e['record'], 'receipt': e['receipt']} for e in ledger if e['type'] == 'submission')
     return records, ledger
 
@@ -90,7 +103,7 @@ def persist(api, proposals):
             if event['type'] == 'review':
                 checked = review(payload(issue['body']), issue['user'], known, reviewers)
                 event = {**checked, 'requestId': event['requestId']}
-            body = MARKER + json.dumps(event, separators=(',', ':')) + '\n```\n\n' + ('PENDING REVIEW — automated analysis is not a guarantee of safety.' if event['type'] == 'submission' else 'Recorded in the public review history.')
+            body = EVENT_MARKER + json.dumps(event, separators=(',', ':')) + '\n```\n\n' + ('PENDING REVIEW — automated analysis is not a guarantee of safety.' if event['type'] == 'submission' else 'Recorded in the public review history.')
             if len(body) > 60000:
                 raise ValueError('Record exceeds GitHub comment limit')
         api.request(endpoint + '/comments', 'POST', {'body': body})
