@@ -45,7 +45,7 @@ def monitor(api, records, ledger):
             changed = release_state != record.get('releaseState', []) or (record.get('scan') or {}).get('scannerVersion') != SCANNER_VERSION or sha != record['commit'] or metadata['full_name'] != record['repository'] or state['archived'] or state['disabled']
             if not changed:
                 continue
-            identity = event_id({'package': package, 'commit': sha, **state})
+            identity = event_id({'package': package, 'commit': sha, 'scannerVersion': SCANNER_VERSION, **state})
             if any(e.get('requestId') == identity for e in ledger):
                 continue
             event = {'type': 'upstream', 'package': package, 'commit': sha, 'state': state, 'requestId': identity,

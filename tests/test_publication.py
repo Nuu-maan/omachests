@@ -218,9 +218,12 @@ class PublicationTests(unittest.TestCase):
                 raise AssertionError(path)
 
         fresh = {**record, 'warnings': []}
+        previous_identity = event_id({'package': record['package'], 'commit': commit, 'releases': [],
+                                      'repository': record['repository'], 'archived': False, 'disabled': False})
         with patch('publish.verify', return_value=fresh), patch('publish.scan_repository', return_value=fresh):
-            event = publish.monitor(MonitorAPI(), [record], [])[0]['event']
+            event = publish.monitor(MonitorAPI(), [record], [{'requestId': previous_identity}])[0]['event']
         self.assertEqual(event['type'], 'submission')
+        self.assertNotEqual(event['requestId'], previous_identity)
 
 
 if __name__ == '__main__':
