@@ -15,7 +15,12 @@ const labels = { verified: 'Verified', unverified: 'Unverified', 'review-require
 
 const h = (type, style, ...children) => ({ type, props: { style: { display: 'flex', ...style }, children } })
 const text = (value, style) => h('div', { fontFamily: 'Mono', color: color.secondary, ...style }, value)
-const clip = (value, limit) => value.length > limit ? value.slice(0, value.lastIndexOf(' ', limit - 1)).replace(/[,;:.]$/, '') + '…' : value
+function clip(value, limit) {
+  if (value.length <= limit) return value
+  const space = value.lastIndexOf(' ', limit - 1)
+  return value.slice(0, space > 0 ? space : limit).replace(/[,;:.]$/, '') + '…'
+}
+if (clip('x'.repeat(50), 40) !== 'x'.repeat(40) + '…') throw new Error('Text clipping self-check failed')
 const pixels = Array.from({ length: 24 }, (_, i) => h('div', {
   position: 'absolute', width: 10, height: 10, backgroundColor: color.text,
   left: `${(i * 37) % 100}%`, top: `${(i * 23) % 95}%`, opacity: (i % 3 + 1) * 0.05,
