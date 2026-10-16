@@ -141,6 +141,26 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(event['record']['commit'], new_commit)
         self.assertIn('comparison is unavailable', event['record']['warnings'][0])
 
+    def test_monitor_rescans_records_from_an_older_scanner(self):
+        commit = 'a' * 40
+        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'path': '',
+                  'commit': commit, 'publisher': 'owner', 'releaseState': [], 'scan': {'scannerVersion': 0}}
+
+        class MonitorAPI:
+            def request(self, path):
+                if path == '/repositories/1':
+                    return {'full_name': 'owner/clock', 'archived': False, 'disabled': False, 'default_branch': 'main'}
+                if path.endswith('/releases?per_page=10'):
+                    return []
+                if path.endswith('/commits/main'):
+                    return {'sha': commit}
+                raise AssertionError(path)
+
+        fresh = {**record, 'warnings': []}
+        with patch('publish.verify', return_value=fresh), patch('publish.scan_repository', return_value=fresh):
+            event = publish.monitor(MonitorAPI(), [record], [])[0]['event']
+        self.assertEqual(event['type'], 'submission')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,7 +8,7 @@ from urllib.parse import quote
 from github import GitHub
 from intake import prepare
 from registry import REGISTRY, receipts, verify
-from scan import scan_repository
+from scan import SCANNER_VERSION, scan_repository
 from trust import MARKER, event_id, events, payload, project, review
 
 
@@ -29,7 +29,7 @@ def monitor(api, records, ledger):
             release_state = [{'id': r['id'], 'tag': r['tag_name'], 'authorId': r['author']['id'], 'updatedAt': r['updated_at']} for r in releases]
             state = {'releases': release_state, 'repository': metadata['full_name'], 'archived': metadata['archived'], 'disabled': metadata.get('disabled', False)}
             sha = api.request(f'/repos/{metadata["full_name"]}/commits/{quote(metadata["default_branch"], safe="")}')['sha']
-            changed = release_state != record.get('releaseState', []) or not record.get('scan') or sha != record['commit'] or metadata['full_name'] != record['repository'] or state['archived'] or state['disabled']
+            changed = release_state != record.get('releaseState', []) or (record.get('scan') or {}).get('scannerVersion') != SCANNER_VERSION or sha != record['commit'] or metadata['full_name'] != record['repository'] or state['archived'] or state['disabled']
             if not changed:
                 continue
             identity = event_id({'package': package, 'commit': sha, **state})

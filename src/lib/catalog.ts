@@ -1,6 +1,6 @@
 import snapshot from '../../public/registry.json' with { type: 'json' }
 
-export type Scan = { counts?: Record<string, number>; validation: string; method: string; capabilities: Record<string, { file: string; line: number; evidence: string }[]>; qml: { file: string; warnings: number; note: string }[] }
+export type Scan = { scannerVersion?: number; counts?: Record<string, number>; validation: string; method: string; capabilities: Record<string, { file: string; line: number; evidence: string }[]>; qml: { file: string; warnings: number; note: string }[] }
 export type Review = { action: string; commit: string; version: string; reviewer: string; timestamp: string; notes: string; recommendation?: string; receipt?: string }
 
 export type Plugin = {

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from registry import read_blob, require
 
+SCANNER_VERSION = 1
 PATTERNS = {
     'network': r'https?://|XMLHttpRequest|\bfetch\s*\(|\bsocket\b',
     'shell': r'\b(?:bash|sh|zsh|fish|sudo|pkexec)\b|shell\s*[:=]',
@@ -53,7 +54,7 @@ def analyze(sources, lint=True):
                 require(not any(w.get('type') in ('critical', 'fatal') or w.get('id') == 'syntax' for w in warnings), f'QML syntax error in {path}')
                 require(completed.returncode in (0, 255), f'QML validation failed in {path}')
                 diagnostics.append({'file': path, 'warnings': len(warnings), 'note': 'Static parser only; Omarchy imports may be unavailable.'})
-    return {'validation': 'passed', 'capabilities': capabilities, 'counts': counts, 'qml': diagnostics,
+    return {'scannerVersion': SCANNER_VERSION, 'validation': 'passed', 'capabilities': capabilities, 'counts': counts, 'qml': diagnostics,
             'method': 'Static pattern analysis and qmllint parsing. Up to 12 evidence samples per capability; all matching lines counted. Absence of a match does not establish absence of a capability.'}
 
 
