@@ -103,6 +103,16 @@ class PublicationTests(unittest.TestCase):
             exported = json.loads((out / 'registry.json').read_text())['plugins'][0]
             self.assertEqual(exported['version'], '2.0.0')
 
+    def test_latest_listing_uses_newest_scan_when_version_is_unchanged(self):
+        record = json.loads((build.ROOT / 'data/seed.json').read_text())[0]
+        old = {**record, 'commit': 'c' * 40, 'version': '2.0.0', 'publishedAt': '2026-09-10'}
+        new = {**record, 'commit': 'd' * 40, 'version': '2.0.0', 'publishedAt': '2026-09-11'}
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(build, 'OUT', Path(directory)), patch.object(build, 'load_records', return_value=[old, new]):
+                build.build()
+            exported = json.loads((Path(directory) / 'registry.json').read_text())['plugins'][0]
+            self.assertEqual(exported['commit'], new['commit'])
+
 
 if __name__ == '__main__':
     unittest.main()

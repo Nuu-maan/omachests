@@ -17,6 +17,10 @@ def version_key(record):
             tuple((0, int(p)) if p.isdigit() else (1, p) for p in prerelease.split('.')))
 
 
+def listing_key(record):
+    return version_key(record), record.get('publishedAt') or record.get('importedAt') or ''
+
+
 def load_records():
     seeds = json.loads((ROOT / 'data/seed.json').read_text())
     live_path = ROOT / '_records.json'
@@ -37,7 +41,7 @@ def build():
         grouped[record['package']].append(record)
     latest = []
     for history in grouped.values():
-        record = max(history, key=version_key)
+        record = max(history, key=listing_key)
         if record['status'] in ('checked', 'discovered'):
             record = {**record, 'status': 'unverified', 'submissionStatus': 'PENDING REVIEW', 'reviews': [], 'reports': [], 'verification': None, 'capabilityChanges': []}
         latest.append({**record, 'slug': hashlib.sha256(record['package'].encode()).hexdigest()[:20]})
