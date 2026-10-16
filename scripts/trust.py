@@ -64,6 +64,9 @@ def project(records, ledger):
     for original in records:
         record = dict(original)
         related = [e for e in ledger if e.get('package') == record['package']]
+        rescans = [e for e in related if e['type'] == 'report' and e.get('commit') == record['commit'] and e.get('rescan')]
+        if rescans:
+            record['scan'] = rescans[-1]['rescan']
         reviews = [e for e in related if e['type'] == 'review']
         exact = [e for e in reviews if e['commit'] == record['commit']]
         approved_by_commit = {}

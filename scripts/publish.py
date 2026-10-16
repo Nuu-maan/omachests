@@ -75,7 +75,7 @@ def monitor(api, records, ledger):
 def persist(api, proposals):
     records, ledger = load(api)
     reviewers = json.loads(Path('data/reviewers.json').read_text())
-    known = json.loads(Path('data/seed.json').read_text()) + records
+    known = project(json.loads(Path('data/seed.json').read_text()) + records, ledger)
     for proposal in proposals:
         endpoint = f'/repos/{REGISTRY}/issues/{proposal["issue"]}'
         issue = api.request(endpoint)

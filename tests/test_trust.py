@@ -49,6 +49,16 @@ class TrustTests(unittest.TestCase):
         failed = {**record, 'scan': {**scan, 'validation': 'failed'}}
         self.assertEqual(project([failed], [approved])[0]['status'], 'review-required')
 
+    def test_report_rescan_replaces_the_projected_scan(self):
+        old_scan = analyze({'x.qml': 'Item {}'}, lint=False)
+        new_scan = analyze({'x.qml': 'Item { property string url: "https://example.com" }'}, lint=False)
+        record = {'package': '@a/b', 'commit': 'a' * 40, 'version': '1.0.0', 'scan': old_scan}
+        report = {'type': 'report', 'package': '@a/b', 'commit': record['commit'], 'reason': 'Security issue',
+                  'notes': 'Please check network access', 'timestamp': '2026-09-11', 'rescan': new_scan}
+        projected = project([record], [report])[0]
+        self.assertEqual(projected['scan'], new_scan)
+        self.assertEqual(projected['scanDigest'], event_id(new_scan))
+
     def test_qml_parser_rejects_invalid_syntax(self):
         self.assertEqual(analyze({'Valid.qml': 'import QtQuick\nItem {}'})['validation'], 'passed')
         with self.assertRaises(ValueError):

@@ -32,7 +32,7 @@ export type Plugin = {
   reviews?: Review[]
   verification?: Review | null
   capabilityChanges?: string[]
-  reports?: { reason: string; notes: string; timestamp: string; receipt?: string }[]
+  reports?: { reason: string; notes: string; timestamp: string; rescan?: Scan; rescanError?: string; receipt?: string }[]
   publishedAt: string | null
   importedAt?: string
   publisher: string | null
