@@ -67,7 +67,15 @@ def project(records, ledger):
                 approved_by_commit.pop(e['commit'], None)
         approved = list(approved_by_commit.values())
         record['reviews'] = reviews
-        record['reports'] = [e for e in related if e['type'] == 'report' and (not exact or e['timestamp'] > exact[-1]['timestamp'])]
+        reports = [e for e in related if e['type'] == 'report' and (not exact or e['timestamp'] > exact[-1]['timestamp'])]
+        record['reports'] = []
+        for report in reports:
+            public = {key: value for key, value in report.items() if key not in ('rescan', 'rescanError')}
+            if report.get('rescan'):
+                public['rescanStatus'] = 'completed'
+            elif report.get('rescanError'):
+                public['rescanStatus'] = 'failed'
+            record['reports'].append(public)
         record['verification'] = approved[-1] if approved else None
         record['submissionStatus'] = ACTIONS[exact[-1]['action']] if exact else 'PENDING REVIEW'
         record['status'] = 'verified' if record['submissionStatus'] == 'APPROVED' else 'unverified'

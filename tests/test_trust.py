@@ -58,6 +58,8 @@ class TrustTests(unittest.TestCase):
         projected = project([record], [report])[0]
         self.assertEqual(projected['scan'], new_scan)
         self.assertEqual(projected['scanDigest'], event_id(new_scan))
+        self.assertEqual(projected['reports'][0]['rescanStatus'], 'completed')
+        self.assertNotIn('rescan', projected['reports'][0])
 
     def test_qml_parser_rejects_invalid_syntax(self):
         self.assertEqual(analyze({'Valid.qml': 'import QtQuick\nItem {}'})['validation'], 'passed')
