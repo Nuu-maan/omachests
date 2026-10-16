@@ -20,6 +20,10 @@ class TrustTests(unittest.TestCase):
             review({**value, 'scanDigest': 'old'}, {'id': 1, 'login': 'owner'}, [record], [1])
         approved = review(value, {'id': 1, 'login': 'owner'}, [record], [1])
         self.assertEqual(project([record], [approved])[0]['status'], 'verified')
+        rejected = {**approved, 'action': 'reject', 'timestamp': '2026-09-11'}
+        rejected_record = project([record], [approved, rejected])[0]
+        self.assertEqual(rejected_record['status'], 'unverified')
+        self.assertIsNone(rejected_record['verification'])
         updated = {**record, 'commit': 'b' * 40, 'scan': analyze({'x.sh': 'bash command'}, lint=False)}
         self.assertEqual(project([updated], [approved])[0]['status'], 'review-required')
         revoked = {**approved, 'action': 'revoke'}
@@ -44,6 +48,18 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(project([changed], [approved])[0]['status'], 'review-required')
         failed = {**record, 'scan': {**scan, 'validation': 'failed'}}
         self.assertEqual(project([failed], [approved])[0]['status'], 'review-required')
+
+    def test_report_rescan_replaces_the_projected_scan(self):
+        old_scan = analyze({'x.qml': 'Item {}'}, lint=False)
+        new_scan = analyze({'x.qml': 'Item { property string url: "https://example.com" }'}, lint=False)
+        record = {'package': '@a/b', 'commit': 'a' * 40, 'version': '1.0.0', 'scan': old_scan}
+        report = {'type': 'report', 'package': '@a/b', 'commit': record['commit'], 'reason': 'Security issue',
+                  'notes': 'Please check network access', 'timestamp': '2026-09-11', 'rescan': new_scan}
+        projected = project([record], [report])[0]
+        self.assertEqual(projected['scan'], new_scan)
+        self.assertEqual(projected['scanDigest'], event_id(new_scan))
+        self.assertEqual(projected['reports'][0]['rescanStatus'], 'completed')
+        self.assertNotIn('rescan', projected['reports'][0])
 
     def test_qml_parser_rejects_invalid_syntax(self):
         self.assertEqual(analyze({'Valid.qml': 'import QtQuick\nItem {}'})['validation'], 'passed')

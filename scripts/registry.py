@@ -116,21 +116,15 @@ def verify(api, submission, actor, issue_number, require_owner=True):
             'issue': f'https://github.com/{REGISTRY}/issues/{issue_number}'}
 
 
-def receipts(api):
-    # ponytail: scan at most 10,000 comments; use indexed storage beyond that.
-    records = []
-    for comment in api.pages(f'/repos/{REGISTRY}/issues/comments'):
-        if comment['user']['id'] != BOT_ID or not comment.get('body', '').startswith(MARKER):
-            continue
-        record = json.loads(comment['body'][len(MARKER):].split('\n```', 1)[0])
-        record['receipt'] = comment['html_url']
-        records.append(record)
-    return records
+def check_identity(records, record):
+    previous = [r for r in records if r['package'] == record['package']]
+    require(all(r['repositoryId'] == record['repositoryId'] for r in previous), 'Repository identity changed; contact registry administrators')
+    require(all(r['package'] == record['package'] for r in records if r.get('id') == record['id']), 'Plugin ID is already used by another package')
 
 
 def check_release(records, record):
+    check_identity(records, record)
     previous = [r for r in records if r['package'] == record['package']]
-    require(all(r['repositoryId'] == record['repositoryId'] for r in previous), 'Repository identity changed; contact registry administrators')
     same = [r for r in previous if r['version'] == record['version']]
     require(not same or all(r['commit'] == record['commit'] for r in same), 'A published version cannot be replaced; bump the version')
     return not same

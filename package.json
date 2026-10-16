@@ -28,5 +28,9 @@
     "satori": "0.33.4",
     "typescript": "7.0.2",
     "vite": "8.2.2"
+  },
+  "overrides": {
+    "fflate": "0.8.3",
+    "source-map-js": "1.2.2"
   }
 }
