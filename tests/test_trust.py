@@ -20,6 +20,10 @@ class TrustTests(unittest.TestCase):
             review({**value, 'scanDigest': 'old'}, {'id': 1, 'login': 'owner'}, [record], [1])
         approved = review(value, {'id': 1, 'login': 'owner'}, [record], [1])
         self.assertEqual(project([record], [approved])[0]['status'], 'verified')
+        rejected = {**approved, 'action': 'reject', 'timestamp': '2026-09-11'}
+        rejected_record = project([record], [approved, rejected])[0]
+        self.assertEqual(rejected_record['status'], 'unverified')
+        self.assertIsNone(rejected_record['verification'])
         updated = {**record, 'commit': 'b' * 40, 'scan': analyze({'x.sh': 'bash command'}, lint=False)}
         self.assertEqual(project([updated], [approved])[0]['status'], 'review-required')
         revoked = {**approved, 'action': 'revoke'}

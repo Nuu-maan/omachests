@@ -70,7 +70,7 @@ def project(records, ledger):
         for e in reviews:
             if e['action'] == 'approve':
                 approved_by_commit[e['commit']] = e
-            elif e['action'] == 'revoke':
+            else:
                 approved_by_commit.pop(e['commit'], None)
         approved = list(approved_by_commit.values())
         record['reviews'] = reviews
