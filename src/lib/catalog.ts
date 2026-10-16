@@ -60,6 +60,8 @@ export function filterPlugins(plugins: Plugin[], query: string, kind: string, ch
     const text = [plugin.name, plugin.description, plugin.repository, plugin.id, ...plugin.kinds].join(' ').toLowerCase()
     return words.every(word => text.includes(word)) && (!kind || plugin.kinds.includes(kind)) && (!checked || plugin.status === 'verified')
   }).sort((a, b) => {
+    const verificationOrder = Number(b.status === 'verified') - Number(a.status === 'verified')
+    if (verificationOrder) return verificationOrder
     if (sort === 'stars') return b.stars - a.stars || a.name.localeCompare(b.name)
     if (sort === 'recent') return (b.publishedAt || b.importedAt || '').localeCompare(a.publishedAt || a.importedAt || '')
     return a.name.localeCompare(b.name)
