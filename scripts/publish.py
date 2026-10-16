@@ -7,14 +7,27 @@ from urllib.parse import quote
 
 from github import GitHub
 from intake import prepare
-from registry import REGISTRY, receipts, verify
-from scan import scan_repository
-from trust import MARKER, event_id, events, payload, project, review
+from registry import BOT_ID, MARKER as RECEIPT_MARKER, REGISTRY, check_identity, verify
+from scan import SCANNER_VERSION, scan_repository
+from trust import MARKER as EVENT_MARKER, event_id, payload, project, review
 
 
 def load(api):
-    ledger = events(api)
-    records = receipts(api)
+    ledger = []
+    records = []
+    # shortcut: scan at most 10,000 comments; use indexed storage beyond that.
+    for comment in api.pages(f'/repos/{REGISTRY}/issues/comments'):
+        if comment['user']['id'] != BOT_ID:
+            continue
+        body = comment.get('body', '')
+        if body.startswith(EVENT_MARKER):
+            event = json.loads(body[len(EVENT_MARKER):].split('\n```', 1)[0])
+            event['receipt'] = comment['html_url']
+            ledger.append(event)
+        elif body.startswith(RECEIPT_MARKER):
+            record = json.loads(body[len(RECEIPT_MARKER):].split('\n```', 1)[0])
+            record['receipt'] = comment['html_url']
+            records.append(record)
     records.extend({**e['record'], 'receipt': e['receipt']} for e in ledger if e['type'] == 'submission')
     return records, ledger
 
@@ -29,10 +42,10 @@ def monitor(api, records, ledger):
             release_state = [{'id': r['id'], 'tag': r['tag_name'], 'authorId': r['author']['id'], 'updatedAt': r['updated_at']} for r in releases]
             state = {'releases': release_state, 'repository': metadata['full_name'], 'archived': metadata['archived'], 'disabled': metadata.get('disabled', False)}
             sha = api.request(f'/repos/{metadata["full_name"]}/commits/{quote(metadata["default_branch"], safe="")}')['sha']
-            changed = release_state != record.get('releaseState', []) or not record.get('scan') or sha != record['commit'] or metadata['full_name'] != record['repository'] or state['archived'] or state['disabled']
+            changed = release_state != record.get('releaseState', []) or (record.get('scan') or {}).get('scannerVersion') != SCANNER_VERSION or sha != record['commit'] or metadata['full_name'] != record['repository'] or state['archived'] or state['disabled']
             if not changed:
                 continue
-            identity = event_id({'package': package, 'commit': sha, **state})
+            identity = event_id({'package': package, 'commit': sha, 'scannerVersion': SCANNER_VERSION, **state})
             if any(e.get('requestId') == identity for e in ledger):
                 continue
             event = {'type': 'upstream', 'package': package, 'commit': sha, 'state': state, 'requestId': identity,
@@ -40,15 +53,21 @@ def monitor(api, records, ledger):
             try:
                 fresh = verify(api, {'repository': metadata['full_name'], 'commit': sha, 'path': record['path']}, record.get('publisher') or '', 0, require_owner=False)
                 fresh['package'] = package
+                check_identity(records, fresh)
                 fresh['releaseState'] = release_state
                 if releases:
                     fresh['changelog'] = (releases[0].get('body') or '')[:4000]
                     fresh['releaseUrl'] = releases[0]['html_url']
                 fresh = scan_repository(api, fresh)
                 if sha != record['commit']:
-                    comparison = api.request(f'/repos/{metadata["full_name"]}/compare/{record["commit"]}...{sha}')
-                    fresh['changedFiles'] = [item['filename'] for item in comparison.get('files', [])]
-                    fresh['compareUrl'] = f'https://github.com/{metadata["full_name"]}/compare/{record["commit"]}...{sha}'
+                    try:
+                        comparison = api.request(f'/repos/{metadata["full_name"]}/compare/{record["commit"]}...{sha}')
+                        fresh['changedFiles'] = [item['filename'] for item in comparison.get('files', [])]
+                        fresh['compareUrl'] = f'https://github.com/{metadata["full_name"]}/compare/{record["commit"]}...{sha}'
+                    except HTTPError as error:
+                        if error.code not in (404, 409, 422):
+                            raise
+                        fresh['warnings'].append('Commit comparison is unavailable; inspect the repository history directly.')
                 event['record'] = fresh
                 event['type'] = 'submission'
                 event['upstream'] = True
@@ -69,7 +88,7 @@ def monitor(api, records, ledger):
 def persist(api, proposals):
     records, ledger = load(api)
     reviewers = json.loads(Path('data/reviewers.json').read_text())
-    known = json.loads(Path('data/seed.json').read_text()) + records
+    known = project(json.loads(Path('data/seed.json').read_text()) + records, ledger)
     for proposal in proposals:
         endpoint = f'/repos/{REGISTRY}/issues/{proposal["issue"]}'
         issue = api.request(endpoint)
@@ -84,7 +103,7 @@ def persist(api, proposals):
             if event['type'] == 'review':
                 checked = review(payload(issue['body']), issue['user'], known, reviewers)
                 event = {**checked, 'requestId': event['requestId']}
-            body = MARKER + json.dumps(event, separators=(',', ':')) + '\n```\n\n' + ('PENDING REVIEW — automated analysis is not a guarantee of safety.' if event['type'] == 'submission' else 'Recorded in the public review history.')
+            body = EVENT_MARKER + json.dumps(event, separators=(',', ':')) + '\n```\n\n' + ('PENDING REVIEW — automated analysis is not a guarantee of safety.' if event['type'] == 'submission' else 'Recorded in the public review history.')
             if len(body) > 60000:
                 raise ValueError('Record exceeds GitHub comment limit')
         api.request(endpoint + '/comments', 'POST', {'body': body})

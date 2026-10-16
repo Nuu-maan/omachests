@@ -1,6 +1,6 @@
 import snapshot from '../../public/registry.json' with { type: 'json' }
 
-export type Scan = { counts?: Record<string, number>; validation: string; method: string; capabilities: Record<string, { file: string; line: number; evidence: string }[]>; qml: { file: string; warnings: number; note: string }[] }
+export type Scan = { scannerVersion?: number; counts?: Record<string, number>; validation: string; method: string; capabilities: Record<string, { file: string; line: number; evidence: string }[]>; qml: { file: string; warnings: number; note: string }[] }
 export type Review = { action: string; commit: string; version: string; reviewer: string; timestamp: string; notes: string; recommendation?: string; receipt?: string }
 
 export type Plugin = {
@@ -32,7 +32,7 @@ export type Plugin = {
   reviews?: Review[]
   verification?: Review | null
   capabilityChanges?: string[]
-  reports?: { reason: string; notes: string; timestamp: string; receipt?: string }[]
+  reports?: { reason: string; notes: string; timestamp: string; rescanStatus?: 'completed' | 'failed'; receipt?: string }[]
   publishedAt: string | null
   importedAt?: string
   publisher: string | null
@@ -60,6 +60,8 @@ export function filterPlugins(plugins: Plugin[], query: string, kind: string, ch
     const text = [plugin.name, plugin.description, plugin.repository, plugin.id, ...plugin.kinds].join(' ').toLowerCase()
     return words.every(word => text.includes(word)) && (!kind || plugin.kinds.includes(kind)) && (!checked || plugin.status === 'verified')
   }).sort((a, b) => {
+    const verificationOrder = Number(b.status === 'verified') - Number(a.status === 'verified')
+    if (verificationOrder) return verificationOrder
     if (sort === 'stars') return b.stars - a.stars || a.name.localeCompare(b.name)
     if (sort === 'recent') return (b.publishedAt || b.importedAt || '').localeCompare(a.publishedAt || a.importedAt || '')
     return a.name.localeCompare(b.name)
@@ -82,7 +84,7 @@ export function issueUrl(label: string, title: string, value: Record<string, unk
 
 export function submissionUrl(repository: string, commit = '', path = ''): string {
   const parsed = new URL(repository.startsWith('https://') ? repository : `https://github.com/${repository}`)
-  if (parsed.origin !== 'https://github.com' || parsed.search || parsed.hash || !/^\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}\/?$/.test(parsed.pathname) || ['.', '..'].includes(parsed.pathname.split('/')[2])) throw new Error('Enter a GitHub repository URL, such as https://github.com/owner/plugin.')
+  if (parsed.origin !== 'https://github.com' || parsed.username || parsed.password || parsed.search || parsed.hash || !/^\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}\/?$/.test(parsed.pathname) || ['.', '..'].includes(parsed.pathname.split('/')[2])) throw new Error('Enter a GitHub repository URL, such as https://github.com/owner/plugin.')
   if (commit && !/^[a-f0-9]{40}$/.test(commit)) throw new Error('Use a full 40-character commit SHA.')
   if (path && (path.length > 200 || !/^[A-Za-z0-9_. /-]+$/.test(path) || path.split('/').some(part => ['', '.', '..'].includes(part)))) throw new Error('Use a relative directory without . or .. segments.')
   return issueUrl('publish', `Submit: ${parsed.pathname.slice(1)}`, { repository: parsed.href, ...(commit ? { commit } : {}), path })
