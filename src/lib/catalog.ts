@@ -84,7 +84,7 @@ export function issueUrl(label: string, title: string, value: Record<string, unk
 
 export function submissionUrl(repository: string, commit = '', path = ''): string {
   const parsed = new URL(repository.startsWith('https://') ? repository : `https://github.com/${repository}`)
-  if (parsed.origin !== 'https://github.com' || parsed.search || parsed.hash || !/^\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}\/?$/.test(parsed.pathname) || ['.', '..'].includes(parsed.pathname.split('/')[2])) throw new Error('Enter a GitHub repository URL, such as https://github.com/owner/plugin.')
+  if (parsed.origin !== 'https://github.com' || parsed.username || parsed.password || parsed.search || parsed.hash || !/^\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}\/?$/.test(parsed.pathname) || ['.', '..'].includes(parsed.pathname.split('/')[2])) throw new Error('Enter a GitHub repository URL, such as https://github.com/owner/plugin.')
   if (commit && !/^[a-f0-9]{40}$/.test(commit)) throw new Error('Use a full 40-character commit SHA.')
   if (path && (path.length > 200 || !/^[A-Za-z0-9_. /-]+$/.test(path) || path.split('/').some(part => ['', '.', '..'].includes(part)))) throw new Error('Use a relative directory without . or .. segments.')
   return issueUrl('publish', `Submit: ${parsed.pathname.slice(1)}`, { repository: parsed.href, ...(commit ? { commit } : {}), path })
