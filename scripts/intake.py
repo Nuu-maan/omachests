@@ -62,8 +62,8 @@ def prepare(api, records, ledger):
                 event = review(payload(issue['body']), issue['user'], project(records, ledger), reviewers)
             elif 'report' in labels:
                 value = payload(issue['body'])
-                matches = [r for r in records if r['package'] == value.get('package')]
-                require(matches and value.get('reason') in REASONS, 'Choose an existing plugin and a report reason')
+                matches = [r for r in records if r['package'] == value.get('package') and r['commit'] == value.get('commit')]
+                require(matches and value.get('reason') in REASONS, 'Choose an existing plugin commit and a report reason')
                 require(isinstance(value.get('notes', ''), str) and len(value.get('notes', '')) <= 4000, 'Explanation exceeds 4,000 characters')
                 latest = matches[-1]
                 event = {'type': 'report', 'package': value['package'], 'commit': latest['commit'], 'reason': value['reason'],
