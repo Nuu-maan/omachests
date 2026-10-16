@@ -13,7 +13,7 @@ class IntakeTests(unittest.TestCase):
         class API:
             def pages(self, path):
                 return [issue]
-        record = {'package': '@owner/plugin', 'commit': 'a' * 40}
+        record = {'package': '@owner/plugin', 'repositoryId': 1, 'id': 'owner.plugin', 'commit': 'a' * 40}
         with patch('intake.resolve', return_value={}), patch('intake.verify', return_value=record), patch('intake.scan_repository', return_value=record):
             proposal = prepare(API(), [], [])[0]
         self.assertEqual(proposal['event']['type'], 'submission')
@@ -26,7 +26,7 @@ class IntakeTests(unittest.TestCase):
         class API:
             def pages(self, path):
                 return [issue]
-        published = {'package': '@owner/plugin', 'commit': 'a' * 40, 'version': '1.0.0', 'repositoryId': 1}
+        published = {'package': '@owner/plugin', 'commit': 'a' * 40, 'version': '1.0.0', 'repositoryId': 1, 'id': 'owner.plugin'}
         resubmission = {**published, 'commit': 'b' * 40}
         with patch('intake.resolve', return_value={}), patch('intake.verify', return_value=resubmission), patch('intake.scan_repository', return_value=resubmission):
             proposal = prepare(API(), [published], [])[0]

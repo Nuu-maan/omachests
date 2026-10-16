@@ -118,7 +118,7 @@ class PublicationTests(unittest.TestCase):
         old_commit = 'a' * 40
         new_commit = 'b' * 40
         compare_error = HTTPError('', 404, 'Not Found', {}, None)
-        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'path': '',
+        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'id': 'owner.clock', 'path': '',
                   'commit': old_commit, 'publisher': 'owner', 'releaseState': [], 'scan': {'validation': 'passed'}}
 
         class MonitorAPI:
@@ -143,7 +143,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_monitor_rescans_records_from_an_older_scanner(self):
         commit = 'a' * 40
-        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'path': '',
+        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'id': 'owner.clock', 'path': '',
                   'commit': commit, 'publisher': 'owner', 'releaseState': [], 'scan': {'scannerVersion': 0}}
 
         class MonitorAPI:

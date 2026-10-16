@@ -39,12 +39,14 @@ class RegistryTests(unittest.TestCase):
             parse_submission(json.dumps({'repository': 'a/b', 'commit': 'main'}))
 
     def test_versions_cannot_be_overwritten_or_taken_over(self):
-        old = {'package': '@someone/clock', 'repositoryId': 1, 'version': '1.0.0', 'commit': 'a' * 40}
+        old = {'package': '@someone/clock', 'repositoryId': 1, 'id': 'someone.clock', 'version': '1.0.0', 'commit': 'a' * 40}
         self.assertFalse(check_release([old], old))
         self.assertTrue(check_release([old], {**old, 'version': '1.0.1'}))
         for change in ({'commit': 'b' * 40}, {'repositoryId': 2}):
             with self.assertRaises(ValueError):
                 check_release([old], {**old, **change})
+        with self.assertRaises(ValueError):
+            check_release([old], {**old, 'package': '@other/clock', 'repositoryId': 2})
 
     def test_only_registry_bot_receipts_are_read(self):
         class API:

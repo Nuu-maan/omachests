@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from github import GitHub
 from intake import prepare
-from registry import REGISTRY, receipts, verify
+from registry import REGISTRY, check_identity, receipts, verify
 from scan import SCANNER_VERSION, scan_repository
 from trust import MARKER, event_id, events, payload, project, review
 
@@ -40,6 +40,7 @@ def monitor(api, records, ledger):
             try:
                 fresh = verify(api, {'repository': metadata['full_name'], 'commit': sha, 'path': record['path']}, record.get('publisher') or '', 0, require_owner=False)
                 fresh['package'] = package
+                check_identity(records, fresh)
                 fresh['releaseState'] = release_state
                 if releases:
                     fresh['changelog'] = (releases[0].get('body') or '')[:4000]
