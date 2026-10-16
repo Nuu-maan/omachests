@@ -24,10 +24,16 @@ def collect(api, repository):
             'publisher': None, 'warnings': []}
 
 
+def merge(existing, imported):
+    updates = {record['package']: record for record in imported}
+    return [updates.pop(record['package'], record) for record in existing] + list(updates.values())
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Import discovery metadata, without granting registry verification.')
     parser.add_argument('repositories', nargs='+')
     args = parser.parse_args()
     api = GitHub()
-    records = [collect(api, repo) for repo in args.repositories]
-    Path('data/seed.json').write_text(json.dumps(records, indent=2) + '\n')
+    path = Path('data/seed.json')
+    records = merge(json.loads(path.read_text()), [collect(api, repo) for repo in args.repositories])
+    path.write_text(json.dumps(records, indent=2) + '\n')

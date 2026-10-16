@@ -6,7 +6,7 @@ from urllib.error import HTTPError
 
 from registry import REGISTRY, check_release, parse_submission, require, verify
 from scan import scan_repository
-from trust import REASONS, event_id, payload, review
+from trust import REASONS, event_id, payload, project, review
 
 
 def resolve(api, body):
@@ -59,15 +59,15 @@ def prepare(api, records, ledger):
             continue
         try:
             if 'review' in labels:
-                event = review(payload(issue['body']), issue['user'], records, reviewers)
+                event = review(payload(issue['body']), issue['user'], project(records, ledger), reviewers)
             elif 'report' in labels:
                 value = payload(issue['body'])
-                matches = [r for r in records if r['package'] == value.get('package')]
-                require(matches and value.get('reason') in REASONS, 'Choose an existing plugin and a report reason')
+                matches = [r for r in records if r['package'] == value.get('package') and r['commit'] == value.get('commit')]
+                require(matches and value.get('reason') in REASONS, 'Choose an existing plugin commit and a report reason')
                 require(isinstance(value.get('notes', ''), str) and len(value.get('notes', '')) <= 4000, 'Explanation exceeds 4,000 characters')
-                event = {'type': 'report', 'package': value['package'], 'reason': value['reason'],
-                         'notes': value.get('notes', ''), 'reporter': issue['user']['login']}
                 latest = matches[-1]
+                event = {'type': 'report', 'package': value['package'], 'commit': latest['commit'], 'reason': value['reason'],
+                         'notes': value.get('notes', ''), 'reporter': issue['user']['login']}
                 try:
                     event['rescan'] = scan_repository(api, dict(latest))['scan']
                 except (ValueError, KeyError, HTTPError) as error:
