@@ -112,6 +112,48 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual([method for method, _ in api.writes], ['POST', 'PATCH'])
         self.assertIn('"action":"approve"', api.writes[0][1]['body'])
 
+    def test_writer_skips_submission_when_repository_changes_after_scan(self):
+        record = verify(self.api, self.submission, 'owner', 1)
+
+        class WriterAPI:
+            writes = []
+
+            def request(self, path, method='GET', data=None):
+                if method == 'GET':
+                    return {'body': 'submission', 'user': {'id': 1}, 'state': 'open'}
+                self.writes.append((method, data))
+
+        api = WriterAPI()
+        proposal = {'issue': 1, 'body': 'submission', 'actorId': 1,
+                    'event': {'type': 'submission', 'requestId': 'request', 'record': record}}
+        changed = {**record, 'commit': 'c' * 40}
+        with patch('publish.load', return_value=([], [])), patch('publish.resolve', return_value=self.submission), \
+                patch('publish.verify', return_value=changed):
+            publish.persist(api, [proposal])
+        self.assertEqual(api.writes, [])
+
+    def test_writer_skips_upstream_scan_when_default_branch_moves(self):
+        record = {'repositoryId': 1, 'repository': 'owner/clock', 'commit': 'a' * 40, 'path': ''}
+
+        class WriterAPI:
+            writes = []
+
+            def request(self, path, method='GET', data=None):
+                if path.endswith('/issues/11'):
+                    return {'body': '', 'user': {'id': BOT_ID}, 'state': 'open'}
+                if path == '/repositories/1':
+                    return {'full_name': 'owner/clock', 'default_branch': 'main'}
+                if path.endswith('/commits/main'):
+                    return {'sha': 'b' * 40}
+                self.writes.append((method, data))
+
+        api = WriterAPI()
+        proposal = {'issue': 11, 'event': {'type': 'submission', 'requestId': 'request',
+                                           'record': record, 'upstream': True}}
+        with patch('publish.load', return_value=([], [])):
+            publish.persist(api, [proposal])
+        self.assertEqual(api.writes, [])
+
     def test_non_owner_and_organization_need_issue_bound_proof(self):
         for actor in ('intruder', 'owner'):
             self.api.organization = True

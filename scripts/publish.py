@@ -6,8 +6,8 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 
 from github import GitHub
-from intake import prepare
-from registry import BOT_ID, MARKER as RECEIPT_MARKER, REGISTRY, check_identity, verify
+from intake import prepare, resolve
+from registry import BOT_ID, MARKER as RECEIPT_MARKER, REGISTRY, check_identity, require, verify
 from scan import SCANNER_VERSION, scan_repository
 from trust import MARKER as EVENT_MARKER, event_id, payload, project, review
 
@@ -85,6 +85,22 @@ def monitor(api, records, ledger):
     return proposals
 
 
+def revalidate_submission(api, proposal, event):
+    record = event['record']
+    if 'body' in proposal:
+        submission = resolve(api, proposal['body'])
+    else:
+        metadata = api.request(f'/repositories/{record["repositoryId"]}')
+        require(metadata['full_name'] == record['repository'], 'Repository changed after scanning')
+        commit = api.request(f'/repos/{metadata["full_name"]}/commits/{quote(metadata["default_branch"], safe="")}')['sha']
+        require(commit == record['commit'], 'Repository changed after scanning')
+        submission = {'repository': record['repository'], 'commit': commit, 'path': record['path']}
+    fresh = verify(api, submission, record.get('publisher') or '', proposal['issue'], require_owner=False)
+    fields = ('package', 'repository', 'repositoryId', 'path', 'commit', 'tree', 'manifestSha256',
+              'id', 'name', 'description', 'author', 'license', 'version', 'kinds')
+    require(all(fresh.get(field) == record.get(field) for field in fields), 'Repository changed after scanning')
+
+
 def persist(api, proposals):
     records, ledger = load(api)
     reviewers = json.loads(Path('data/reviewers.json').read_text())
@@ -103,6 +119,11 @@ def persist(api, proposals):
             if event['type'] == 'review':
                 checked = review(payload(issue['body']), issue['user'], known, reviewers)
                 event = {**checked, 'requestId': event['requestId']}
+            elif event['type'] == 'submission':
+                try:
+                    revalidate_submission(api, proposal, event)
+                except (HTTPError, ValueError, KeyError, TypeError, UnicodeError):
+                    continue
             body = EVENT_MARKER + json.dumps(event, separators=(',', ':')) + '\n```\n\n' + ('PENDING REVIEW — automated analysis is not a guarantee of safety.' if event['type'] == 'submission' else 'Recorded in the public review history.')
             if len(body) > 60000:
                 raise ValueError('Record exceeds GitHub comment limit')
