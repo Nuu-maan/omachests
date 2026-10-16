@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import build
 import publish
 from registry import BOT_ID, MARKER as RECEIPT_MARKER, verify
-from trust import MARKER as EVENT_MARKER
+from scan import analyze
+from trust import CHECKLIST, MARKER as EVENT_MARKER, event_id
 
 
 class API:
@@ -69,6 +70,47 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(api.calls, 1)
         self.assertEqual([record['package'] for record in records], ['@a/b'])
         self.assertEqual([event['package'] for event in ledger], ['@a/b'])
+
+    def test_writer_skips_an_issue_changed_after_scanning(self):
+        class WriterAPI:
+            writes = []
+
+            def pages(self, path):
+                return []
+
+            def request(self, path, method='GET', data=None):
+                if method == 'GET':
+                    return {'body': 'changed', 'user': {'id': 1}, 'state': 'open'}
+                self.writes.append((method, data))
+
+        api = WriterAPI()
+        publish.persist(api, [{'issue': 1, 'body': 'original', 'actorId': 1,
+                               'event': {'type': 'report', 'requestId': 'request'}}])
+        self.assertEqual(api.writes, [])
+
+    def test_writer_revalidates_review_before_recording_it(self):
+        scan = analyze({'x.qml': 'Item {}'}, lint=False)
+        record = {'package': '@owner/clock', 'commit': 'a' * 40, 'version': '1.0.0', 'repositoryId': 1,
+                  'repository': 'owner/clock', 'scan': scan}
+        value = {'package': record['package'], 'commit': record['commit'], 'action': 'approve', 'notes': 'Inspected code',
+                 'checklist': CHECKLIST, 'scanDigest': event_id(scan)}
+        body = json.dumps(value)
+
+        class WriterAPI:
+            writes = []
+
+            def request(self, path, method='GET', data=None):
+                if method == 'GET':
+                    return {'body': body, 'user': {'id': 174859539, 'login': 'Nuu-maan'}, 'state': 'open'}
+                self.writes.append((method, data))
+
+        api = WriterAPI()
+        proposal = {'issue': 1, 'body': body, 'actorId': 174859539,
+                    'event': {'type': 'review', 'requestId': 'request'}}
+        with patch('publish.load', return_value=([record], [])):
+            publish.persist(api, [proposal])
+        self.assertEqual([method for method, _ in api.writes], ['POST', 'PATCH'])
+        self.assertIn('"action":"approve"', api.writes[0][1]['body'])
 
     def test_non_owner_and_organization_need_issue_bound_proof(self):
         for actor in ('intruder', 'owner'):
