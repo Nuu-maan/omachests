@@ -12,10 +12,12 @@ test('submissions use fixed GitHub origin and filters return matching records', 
 })
 
 test('verified plugins are listed before unverified plugins', () => {
+  const base = registry.plugins[0]
+  assert.ok(base)
   const plugins = [
-    { name: 'Alpha', description: '', repository: 'owner/alpha', id: 'owner.alpha', kinds: [], status: 'unverified', stars: 100, publishedAt: '2026-10-17' },
-    { name: 'Zulu', description: '', repository: 'owner/zulu', id: 'owner.zulu', kinds: [], status: 'verified', stars: 1, publishedAt: '2026-01-01' },
-  ] as Plugin[]
+    { ...base, name: 'Alpha', status: 'unverified', stars: 100, publishedAt: '2026-10-17' },
+    { ...base, name: 'Zulu', status: 'verified', stars: 1, publishedAt: '2026-01-01' },
+  ] satisfies Plugin[]
   for (const sort of ['name', 'stars', 'recent']) {
     assert.deepEqual(filterPlugins(plugins, '', '', false, sort).map(plugin => plugin.name), ['Zulu', 'Alpha'])
   }
