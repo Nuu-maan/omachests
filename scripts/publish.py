@@ -46,9 +46,14 @@ def monitor(api, records, ledger):
                     fresh['releaseUrl'] = releases[0]['html_url']
                 fresh = scan_repository(api, fresh)
                 if sha != record['commit']:
-                    comparison = api.request(f'/repos/{metadata["full_name"]}/compare/{record["commit"]}...{sha}')
-                    fresh['changedFiles'] = [item['filename'] for item in comparison.get('files', [])]
-                    fresh['compareUrl'] = f'https://github.com/{metadata["full_name"]}/compare/{record["commit"]}...{sha}'
+                    try:
+                        comparison = api.request(f'/repos/{metadata["full_name"]}/compare/{record["commit"]}...{sha}')
+                        fresh['changedFiles'] = [item['filename'] for item in comparison.get('files', [])]
+                        fresh['compareUrl'] = f'https://github.com/{metadata["full_name"]}/compare/{record["commit"]}...{sha}'
+                    except HTTPError as error:
+                        if error.code not in (404, 409, 422):
+                            raise
+                        fresh['warnings'].append('Commit comparison is unavailable; inspect the repository history directly.')
                 event['record'] = fresh
                 event['type'] = 'submission'
                 event['upstream'] = True

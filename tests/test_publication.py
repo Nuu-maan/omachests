@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -112,6 +113,33 @@ class PublicationTests(unittest.TestCase):
                 build.build()
             exported = json.loads((Path(directory) / 'registry.json').read_text())['plugins'][0]
             self.assertEqual(exported['commit'], new['commit'])
+
+    def test_monitor_keeps_new_scan_when_comparison_is_unavailable(self):
+        old_commit = 'a' * 40
+        new_commit = 'b' * 40
+        compare_error = HTTPError('', 404, 'Not Found', {}, None)
+        record = {'package': '@owner/clock', 'repositoryId': 1, 'repository': 'owner/clock', 'path': '',
+                  'commit': old_commit, 'publisher': 'owner', 'releaseState': [], 'scan': {'validation': 'passed'}}
+
+        class MonitorAPI:
+            def request(self, path):
+                if path == '/repositories/1':
+                    return {'full_name': 'owner/clock', 'archived': False, 'disabled': False, 'default_branch': 'main'}
+                if path.endswith('/releases?per_page=10'):
+                    return []
+                if path.endswith('/commits/main'):
+                    return {'sha': new_commit}
+                if '/compare/' in path:
+                    raise compare_error
+                raise AssertionError(path)
+
+        fresh = {**record, 'commit': new_commit, 'warnings': []}
+        with patch('publish.verify', return_value=fresh), patch('publish.scan_repository', return_value=fresh):
+            event = publish.monitor(MonitorAPI(), [record], [])[0]['event']
+        compare_error.close()
+        self.assertEqual(event['type'], 'submission')
+        self.assertEqual(event['record']['commit'], new_commit)
+        self.assertIn('comparison is unavailable', event['record']['warnings'][0])
 
 
 if __name__ == '__main__':
