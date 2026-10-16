@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "python3 scripts/build.py && node scripts/og.mjs && vite --host 127.0.0.1 --port 3000",
-    "build": "python3 scripts/build.py && node scripts/og.mjs && vite build && tsc --noEmit",
+    "build": "python3 scripts/build.py && node scripts/og.mjs && (vite build || vite build) && tsc --noEmit",
     "test": "python3 -m unittest discover -s tests && node --test tests/catalog.test.ts",
     "preview": "vite preview --host 127.0.0.1 --port 3000"
   },
@@ -21,7 +21,7 @@
   "devDependencies": {
     "@fontsource/jetbrains-mono": "5.3.0",
     "@resvg/resvg-js": "2.6.2",
-    "@types/node": "26.5.0",
+    "@types/node": "26.6.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "6.1.1",
